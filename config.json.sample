@@ -1,0 +1,18 @@
+{
+    "fields": [
+        {
+            "name": "temperature",
+            "type": "integer",
+            "generator": "simple_range",
+            "range_from": "15",
+            "range_to": "30"
+        },
+        {
+            "name": "humidity",
+            "type": "integer",
+            "generator": "simple_range",
+            "range_from": "0",
+            "range_to": "100"
+        }
+    ]
+}
