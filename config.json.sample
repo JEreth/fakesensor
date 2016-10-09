@@ -1,18 +1,41 @@
 {
-    "fields": [
+    "sensors": [
         {
-            "name": "temperature",
-            "type": "integer",
-            "generator": "simple_range",
-            "range_from": "15",
-            "range_to": "30"
+            "id": "thermometer",
+            "fields": [
+                {
+                    "name": "temperature",
+                    "type": "IntegerField",
+                    "generator": "SimpleRangeIntegerGenerator",
+                    "range_from": "15",
+                    "range_to": "30"
+                },
+                {
+                    "name": "humidity",
+                    "type": "IntegerField",
+                    "generator": "SimpleRangeIntegerGenerator",
+                    "range_from": "0",
+                    "range_to": "100"
+                }
+            ]
         },
         {
-            "name": "humidity",
-            "type": "integer",
-            "generator": "simple_range",
-            "range_from": "0",
-            "range_to": "100"
+            "id": "speedometer",
+            "fields": [
+                {
+                    "name": "speed",
+                    "type": "IntegerField",
+                    "generator": "unknown",
+                    "range_from": "50",
+                    "range_to": "75"
+                },
+                {
+                    "name": "vehicle",
+                    "type": "StringField",
+                    "generator": "SimpleStringValueGenerator",
+                    "value": "speedboat"
+                }
+            ]
         }
     ]
 }

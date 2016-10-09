@@ -1,12 +1,18 @@
 import static spark.Spark.*;
 
 import field.*;
+import generator.*;
+import sensor.*;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -14,36 +20,75 @@ import org.json.simple.parser.ParseException;
 
 public class Main {
 
-    private static String config;
-    private static ArrayList<field.Abstract> fields = new ArrayList<field.Abstract>();
+    private static Map<String,AbstractSensor> sensors = new HashMap<String,AbstractSensor>();
 
 
     public static void main(String[] args) {
 
         initialize();
-        JSONObject obj = new JSONObject();
-
-        for(field.Abstract f : fields) {
-            obj.put((String) f.getName(), f.generateValue());
-        }
-
-        get("/get", (req, res) -> (String) obj.toJSONString());
+        get("/get/:sensorname", (request, response) -> {
+            JSONObject obj = new JSONObject();
+            String requested_sensor = request.params(":sensorname");
+            if (sensors.containsKey(requested_sensor)) { // check if sensor exists
+                obj.put("status", "success");
+                JSONArray response_fields = new JSONArray();
+                AbstractSensor s = sensors.get(requested_sensor);
+                JSONObject field_obj = new JSONObject();
+                for(AbstractField f : s.getFields()) {
+                    field_obj.put((String) f.getName(), f.generateValue());
+                }
+                response_fields.add(field_obj);
+                obj.put("response", response_fields);
+            } else { // if not return 404
+                obj.put("status", "error");
+                obj.put("msg", "sensor not found");
+                response.status(404);
+            }
+            return (String) obj.toJSONString(); // return as json
+        });
     }
 
     /**
-     * read config and setup fields
+     * Read config and setup sensor repository
      */
     private static void initialize() {
         JSONParser parser = new JSONParser();
         try {
             Object obj = parser.parse(new FileReader("config.json"));
             JSONObject jsonObject = (JSONObject) obj;
-            JSONArray json_fields = (JSONArray) jsonObject.get("fields");
-            Iterator<JSONObject> iterator = json_fields.iterator();
-            while (iterator.hasNext()) {
-                JSONObject field = iterator.next();
-                FieldInt f = new FieldInt((String) field.get("name"));
-                fields.add(f);
+
+            JSONArray json_sensors = (JSONArray) jsonObject.get("sensors");
+            Iterator<JSONObject> sensor_iterator = json_sensors.iterator();
+            while (sensor_iterator.hasNext()) {
+                JSONObject sensor = sensor_iterator.next();
+                DefaultSensor s = new DefaultSensor((String) sensor.get("id")); // init sensor object
+                JSONArray json_fields = (JSONArray) sensor.get("fields");
+                Iterator<JSONObject> iterator = json_fields.iterator();
+                while (iterator.hasNext()) { // add fields to sensor object
+                    JSONObject field = iterator.next();
+                    // load adequate field
+                    Class<?> field_class = Class.forName("field."+(String) field.get("type"));
+                    Constructor<?> constructor = field_class.getConstructor(String.class);
+                    AbstractField f = (AbstractField) constructor.newInstance((String) field.get("name"));
+                    // load adequate generator (currently not via forName since the constructors can be quite differently :/
+                    AbstractGenerator g;
+                    switch ((String) field.get("generator")) {
+                        case "SimpleRangeIntegerGenerator":
+                            Integer range_from = Integer.parseInt((String) field.get("range_from"));
+                            Integer range_to = Integer.parseInt((String) field.get("range_to"));
+                            g = new SimpleRangeIntegerGenerator(range_from, range_to);
+                            break;
+                        case "SimpleStringValueGenerator":
+                            g = new SimpleStringValueGenerator((String) field.get("value"));
+                            break;
+                        default:
+                            g = new DefaultGenerator();
+                            break;
+                    }
+                    f.setGenerator(g);
+                    s.getFields().add(f);
+                }
+                sensors.put((String) sensor.get("id"), s); // add sensor object to sensor repository
             }
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -51,14 +96,16 @@ public class Main {
             e.printStackTrace();
         } catch (ParseException e) {
             e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
         }
-    }
-
-    /**
-     * Returns a set of values according to the confix.xml setup
-     * @return
-     */
-    public String getValue() {
-        return "Test";
     }
 }

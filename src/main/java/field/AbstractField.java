@@ -1,16 +1,20 @@
 package field;
 
 
+import generator.AbstractGenerator;
+
 /**
- * Abstract class of a field that contains minimal setup
+ * AbstractGenerator class of a field that contains minimal setup
  */
-public abstract class Abstract<T> {
+public abstract class AbstractField<T> {
 
     protected String name;
     protected String type;
-    protected generator.Abstract generator;
+    protected AbstractGenerator generator;
 
-    public abstract T generateValue();
+    public T generateValue() {
+      return (T) generator.generateValue();
+    };
 
     public String getName() {
         return name;
@@ -20,7 +24,7 @@ public abstract class Abstract<T> {
         return type;
     }
 
-    public generator.Abstract getGenerator() {
+    public AbstractGenerator getGenerator() {
         return generator;
     }
 
@@ -32,7 +36,7 @@ public abstract class Abstract<T> {
         this.type = type;
     }
 
-    public void setGenerator(generator.Abstract generator) {
+    public void setGenerator(AbstractGenerator generator) {
         this.generator = generator;
     }
 }
