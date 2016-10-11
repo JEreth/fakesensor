@@ -9,6 +9,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -29,6 +31,7 @@ public class Main {
         get("/get/:sensorname", (request, response) -> {
             JSONObject obj = new JSONObject();
             String requested_sensor = request.params(":sensorname");
+            obj.put("timestamp",new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
             if (sensors.containsKey(requested_sensor)) { // check if sensor exists
                 obj.put("status", "success");
                 JSONArray response_fields = new JSONArray();
