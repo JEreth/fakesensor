@@ -68,22 +68,17 @@ public class Main {
                     JSONObject field = iterator.next();
                     // load adequate field
                     Class<?> field_class = Class.forName("field."+(String) field.get("type"));
-                    Constructor<?> constructor = field_class.getConstructor(String.class);
-                    AbstractField f = (AbstractField) constructor.newInstance((String) field.get("name"));
-                    // load adequate generator (currently not via forName since the constructors can be quite differently :/
+                    Constructor<?> field_constructor = field_class.getConstructor(String.class);
+                    AbstractField f = (AbstractField) field_constructor.newInstance((String) field.get("name"));
+
+                    // load adequate generator
                     AbstractGenerator g;
-                    switch ((String) field.get("generator")) {
-                        case "SimpleRangeIntegerGenerator":
-                            Integer range_from = Integer.parseInt((String) field.get("range_from"));
-                            Integer range_to = Integer.parseInt((String) field.get("range_to"));
-                            g = new SimpleRangeIntegerGenerator(range_from, range_to);
-                            break;
-                        case "SimpleStringValueGenerator":
-                            g = new SimpleStringValueGenerator((String) field.get("value"));
-                            break;
-                        default:
-                            g = new DefaultGenerator();
-                            break;
+                    try {
+                        Class<?> generator_class = Class.forName("generator."+(String) field.get("generator"));
+                        Constructor<?> generator_constructor = field_class.getConstructor(JSONObject.class);
+                        g = (AbstractGenerator) generator_constructor.newInstance((JSONObject) field);
+                    } catch(Exception e) { // if no class was found load default generator
+                        g = new DefaultGenerator((JSONObject) field);
                     }
                     f.setGenerator(g);
                     s.getFields().add(f);

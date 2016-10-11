@@ -1,5 +1,8 @@
 package generator;
 
+import org.json.simple.JSONObject;
+import org.json.simple.JSONObject;
+
 import java.util.concurrent.ThreadLocalRandom;
 
 
@@ -11,9 +14,12 @@ public class SimpleRangeIntegerGenerator extends AbstractGenerator<Integer> {
     private Integer range_from = 0;
     private Integer range_to = 100;
 
-    public SimpleRangeIntegerGenerator(Integer min, Integer max) {
-        this.range_from = min;
-        this.range_to = max;
+    public SimpleRangeIntegerGenerator(JSONObject field) {
+        super(field);
+        Integer range_from = Integer.parseInt((String) field.get("range_from"));
+        Integer range_to = Integer.parseInt((String) field.get("range_to"));
+        this.range_from = range_from;
+        this.range_to = range_to;
     }
 
     public Integer generateValue() {
