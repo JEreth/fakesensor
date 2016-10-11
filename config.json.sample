@@ -1,7 +1,9 @@
 {
+    "mqtt_broker": "tcp://0.0.0.0:1883",
     "sensors": [
         {
             "id": "thermometer",
+            "publish_intervall": 1000,
             "fields": [
                 {
                     "name": "temperature",
@@ -21,6 +23,7 @@
         },
         {
             "id": "speedometer",
+            "publish_intervall": 5000,
             "fields": [
                 {
                     "name": "speed",

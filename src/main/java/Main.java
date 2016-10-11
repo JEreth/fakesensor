@@ -9,25 +9,47 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Date;
+import java.util.*;
 import java.text.SimpleDateFormat;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import io.moquette.interception.AbstractInterceptHandler;
+import io.moquette.interception.InterceptHandler;
+import io.moquette.interception.messages.InterceptPublishMessage;
+import io.moquette.server.Server;
+import io.moquette.server.config.ClasspathConfig;
+import io.moquette.server.config.IConfig;
+
 public class Main {
 
     private static Map<String,AbstractSensor> sensors = new HashMap<String,AbstractSensor>();
 
+    private static String mqtt_broker = "tcp://0.0.0.0:1883";
 
-    public static void main(String[] args) {
+    // helper to print out published messages (for testing)
+    static class PublisherListener extends AbstractInterceptHandler {
+        @Override
+        public void onPublish(InterceptPublishMessage message) {
+            System.out.println("moquette mqtt broker message intercepted, topic: " + message.getTopicName()
+                    + ", content: " + new String(message.getPayload().array()));
+        }
+    }
 
-        initialize();
+    public static void main(String[] args) throws InterruptedException, IOException {
+
+        initialize(); // init config
+
+        // HANDLE HTTP
         get("/get/:sensorname", (request, response) -> {
             JSONObject obj = new JSONObject();
             String requested_sensor = request.params(":sensorname");
@@ -49,7 +71,69 @@ public class Main {
             }
             return (String) obj.toJSONString(); // return as json
         });
+
+        // INIT MQTT BROKER (MOQUETTE)
+        final IConfig classPathConfig = new ClasspathConfig();
+
+        final Server mqttBroker = new Server();
+        final List<? extends InterceptHandler> userHandlers = Arrays.asList(new PublisherListener());
+        mqttBroker.startServer(classPathConfig, userHandlers);
+
+        System.out.println("moquette mqtt broker started, press ctrl-c to shutdown..");
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                System.out.println("stopping moquette mqtt broker..");
+                mqttBroker.stopServer();
+                System.out.println("moquette mqtt broker stopped");
+            }
+        });
+
+        // INIT MQTT client (PAHO)
+        int qos = 2;
+        String clientId = "fake-paho-client";
+        try {
+            // CONNECT TO BROKER
+            MqttClient fakeClient = new MqttClient(mqtt_broker, clientId, new MemoryPersistence());
+            MqttConnectOptions connOpts = new MqttConnectOptions();
+            connOpts.setCleanSession(true);
+            System.out.println("Connecting to mqtt broker: " + mqtt_broker);
+            fakeClient.connect(connOpts);
+            java.util.Timer t = new java.util.Timer();
+            for (AbstractSensor sensor : sensors.values()) {
+                if (sensor.getPublishInterval()>0) {
+                    t.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            // generate json for publishing
+                            JSONObject obj = new JSONObject();
+                            obj.put("timestamp",new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
+                            obj.put("status", "success");
+                            JSONArray response_fields = new JSONArray();
+                            JSONObject field_obj = new JSONObject();
+                            for(AbstractField f : sensor.getFields()) {
+                                field_obj.put((String) f.getName(), f.generateValue());
+                            }
+                            response_fields.add(field_obj);
+                            obj.put("response", response_fields);
+                            try {
+                                MqttMessage message = new MqttMessage(obj.toJSONString().getBytes());
+                                message.setQos(qos);
+                                fakeClient.publish(sensor.getName(), message);
+                            } catch (MqttException e) {
+                                e.printStackTrace();
+                            }
+                            //fakeClient.disconnect();
+                            //System.out.println);
+                        }
+                    }, sensor.getPublishInterval(), sensor.getPublishInterval());
+                }
+            }
+        } catch (MqttException me) {
+            me.printStackTrace();
+        }
     }
+
 
     /**
      * Read config and setup sensor repository
@@ -60,11 +144,21 @@ public class Main {
             Object obj = parser.parse(new FileReader("config.json"));
             JSONObject jsonObject = (JSONObject) obj;
 
+            if (jsonObject.get("mqtt_broker")!= null) { // if custom broker was set
+                mqtt_broker = (String) jsonObject.get("mqtt_broker");
+            }
+
             JSONArray json_sensors = (JSONArray) jsonObject.get("sensors");
             Iterator<JSONObject> sensor_iterator = json_sensors.iterator();
             while (sensor_iterator.hasNext()) {
                 JSONObject sensor = sensor_iterator.next();
                 DefaultSensor s = new DefaultSensor((String) sensor.get("id")); // init sensor object
+
+                // check if publish sensor
+                if (sensor.get("publish_interval") != null) {
+                    s.setPublishInterval((int) (long) sensor.get("publish_interval"));
+                }
+
                 JSONArray json_fields = (JSONArray) sensor.get("fields");
                 Iterator<JSONObject> iterator = json_fields.iterator();
                 while (iterator.hasNext()) { // add fields to sensor object
