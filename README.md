@@ -21,11 +21,14 @@ I use it to simulate analytics scenarios, but it can be adapted for any other pu
 
 **1.  Configuration**
 
-Copy the config.json.sample in the root directory and rename it to config.json. Find more information about the config.json below.
+Copy the config.json.sample in the root directory and edit it as you need. Find more information about the config.json below.
 
 **2.  Run the application**
 
-After you set up your config.json you simply have to start the app with: `javac Main.java`. Then you can access your sensors easily via http or mqtt
+You can run the application easily with the executable jar in the bin directory with `java -jar bin/fakesensor.jar` from the root directory (take care that a bin/config.json file exists).
+Alternatvely you can build and run the application from source
+
+As soon as the application is running you can access your sensors easily via http or mqtt:
 
 **2.1. Access via http**
 
@@ -37,7 +40,7 @@ The status value shows if the query worked at all (success or error) and respons
 
 **2.2. Access via mqtt**
 
-Info about MQTT: MQTT is a light-weight message protocol often used in the Internet of Things context. A message approach always contains two components A) a message broker that receives and distributes the messages and B) one or many message clients that publish messages by sending them to the broker and read messages from the broker (by subscribing to topics).
+More about MQTT: MQTT is a light-weight message protocol often used in the Internet of Things context. A message approach always contains two components A) a message broker that receives and distributes the messages and B) one or many message clients that publish messages by sending them to the broker and read messages from the broker (by subscribing to topics).
 
 This application provides a broker and a client. However, you can also use your own broker by changing the ip in the *config.json*. The published messages will be printed in the console. Alternatively you can subscribe to the sensors with any mqtt client (e.g. mqttfx http://www.jensd.de/apps/mqttfx/). Therefore use the local IP *tcp://0.0.0.0:1883* and use the sensor name defined in the config.json as topic.
 
