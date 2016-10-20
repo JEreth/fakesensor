@@ -172,7 +172,7 @@ public class Main {
                     AbstractGenerator g;
                     try {
                         Class<?> generator_class = Class.forName("generator."+(String) field.get("generator"));
-                        Constructor<?> generator_constructor = field_class.getConstructor(JSONObject.class);
+                        Constructor<?> generator_constructor = generator_class.getConstructor(JSONObject.class);
                         g = (AbstractGenerator) generator_constructor.newInstance((JSONObject) field);
                     } catch(Exception e) { // if no class was found load default generator
                         g = new DefaultGenerator((JSONObject) field);

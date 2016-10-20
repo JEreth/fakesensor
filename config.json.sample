@@ -3,7 +3,7 @@
     "sensors": [
         {
             "id": "thermometer",
-            "publish_intervall": 1000,
+            "publish_interval": 1000,
             "fields": [
                 {
                     "name": "temperature",
@@ -23,7 +23,7 @@
         },
         {
             "id": "speedometer",
-            "publish_intervall": 5000,
+            "publish_interval": 5000,
             "fields": [
                 {
                     "name": "speed",
@@ -33,10 +33,18 @@
                     "range_to": "75"
                 },
                 {
+                    "name": "tire_pressure",
+                    "type": "DoubleField",
+                    "generator": "SimpleRangeDoubleGenerator",
+                    "range_from": "2.0",
+                    "range_to": "5.0",
+                    "decimal_places": "1"
+                },
+                {
                     "name": "vehicle",
                     "type": "StringField",
                     "generator": "SimpleStringValueGenerator",
-                    "value": "speedboat"
+                    "value": "car"
                 }
             ]
         }

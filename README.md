@@ -71,6 +71,8 @@ Currently the following field types are implemented.
 
 **2. StringField** Simple String field that returns a text value
 
+**3. DoubleField** Simple double field that returns a number with decimal places
+
 A field always incorporates a generator that generates values (e.g. a random number in a range). Find a list of available generators below.
 
 #### == Generators ==
@@ -81,6 +83,9 @@ Currently the following value generators are implemented
 **2. SimpleRangeIntegerGenerator** Simple integer generator that returns a random integer between a given range. To define the range use the additional fields *range_from* and *range_to*
 
 **3. SimpleStringValueGenerator** Simple string generator that just retuns a given text. To define the text use the additional field *value*
+
+**4. SimpleRangeDoubleGenerator** Simple double generator that returns a random integer between a given range. To define the range use the additional fields *range_from* and *range_to* with decimal numbers. Additionally you can define the field *decimal_places* for a custom rounding (default 2 decimal places)
+
 
 ### Contribute and future work
 This project is part of an ongoing research at the University of Stuttgart and will be a tool to simulate analytics scenarios in the context of the Internet of Things. Feel free to use this generator for any purpose or to contribute and with enhancements or new field types or generators.
