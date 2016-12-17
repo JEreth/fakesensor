@@ -2,6 +2,7 @@ import static spark.Spark.*;
 
 import field.*;
 import generator.*;
+import helper.CsvWriter;
 import sensor.*;
 
 import java.io.FileNotFoundException;
@@ -47,12 +48,84 @@ public class Main {
 
     public static void main(String[] args) throws InterruptedException, IOException {
 
-        initialize(); // init config
+        // init depending on mode
+        JSONParser parser = new JSONParser();
+        try {
+            Object obj = parser.parse(new FileReader("config.json"));
+            JSONObject jsonObject = (JSONObject) obj;
 
-        // HANDLE HTTP
+            // INIT SENSORS
+            initSensors(jsonObject);
+
+            // CHECK MODE FOR COMMUNICATING EVENTS - default is csv
+            switch ((String) jsonObject.get("mode")) {
+                case "mqtt":
+                    initMqtt(jsonObject);
+                    break;
+                case "http":
+                    initHttp(jsonObject);
+                    break;
+                default:
+                    initCsv(jsonObject);
+            }
+        } catch (Exception e) {
+            e.printStackTrace(); // something went southwards
+        }
+    }
+
+    /**
+     *
+     * @param config
+     */
+    private static void initSensors(JSONObject config) {
+        JSONArray json_sensors = (JSONArray) config.get("sensors");
+        for (Object sensorObj : json_sensors) {
+            JSONObject sensor = (JSONObject)sensorObj;
+            DefaultSensor s = new DefaultSensor((String) sensor.get("id")); // init sensor object
+
+            // check if publish sensor
+            if (sensor.get("publish_interval") != null) {
+                s.setPublishInterval((int) (long) sensor.get("publish_interval"));
+            }
+
+            JSONArray json_fields = (JSONArray) sensor.get("fields");
+            for (Object jsonFieldObj : json_fields) {
+                try {
+                    JSONObject field = (JSONObject)jsonFieldObj;
+                    // load adequate field
+                    Class<?> field_class = Class.forName("field." + (String) field.get("type"));
+                    Constructor<?> field_constructor = field_class.getConstructor(String.class);
+                    AbstractField f = (AbstractField) field_constructor.newInstance((String) field.get("name"));
+
+                    // load adequate generator
+                    AbstractGenerator g;
+                    try {
+                        Class<?> generator_class = Class.forName("generator." + (String) field.get("generator"));
+                        Constructor<?> generator_constructor = generator_class.getConstructor(JSONObject.class);
+                        g = (AbstractGenerator) generator_constructor.newInstance((JSONObject) field);
+                    } catch (Exception e) { // if no class was found load default generator
+                        g = new DefaultGenerator((JSONObject) field);
+                    }
+                    f.setGenerator(g);
+                    s.getFields().add(f);
+                } catch(Exception e) { // something didn't work out just skip this field
+                    e.printStackTrace(); // something went southwards
+                }
+            }
+            sensors.put((String) sensor.get("id"), s); // add sensor object to sensor repository
+        }
+    }
+
+    /**
+     * Init http mode to publish events per http requests
+     * @param config coming from config.json
+     */
+    private static void initHttp(JSONObject config) {
+
         get("/get/:sensorname", (request, response) -> {
             JSONObject obj = new JSONObject();
             String requested_sensor = request.params(":sensorname");
+            System.out.println("Request for "+requested_sensor);
             obj.put("timestamp",new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
             if (sensors.containsKey(requested_sensor)) { // check if sensor exists
                 obj.put("status", "success");
@@ -71,6 +144,18 @@ public class Main {
             }
             return (String) obj.toJSONString(); // return as json
         });
+
+    }
+
+    /**
+     * Init mqtt mode to regularly publish events via mqtt
+     * @param config coming from config.json
+     */
+    private static void initMqtt(JSONObject config) throws IOException {
+
+        if (config.get("mqtt_broker")!= null) { // if custom broker was set
+            mqtt_broker = (String) config.get("mqtt_broker");
+        }
 
         // INIT MQTT BROKER (MOQUETTE)
         final IConfig classPathConfig = new ClasspathConfig();
@@ -134,70 +219,29 @@ public class Main {
         }
     }
 
-
     /**
-     * Read config and setup sensor repository
+     * Init csv mode to regularly write events to csv
+     * @param config coming from config.json
      */
-    private static void initialize() {
-        JSONParser parser = new JSONParser();
-        try {
-            Object obj = parser.parse(new FileReader("config.json"));
-            JSONObject jsonObject = (JSONObject) obj;
+    private static void initCsv(JSONObject config) {
+        System.out.println("Running in CSV mode ...");
+        CsvWriter w = new CsvWriter();
 
-            if (jsonObject.get("mqtt_broker")!= null) { // if custom broker was set
-                mqtt_broker = (String) jsonObject.get("mqtt_broker");
-            }
-
-            JSONArray json_sensors = (JSONArray) jsonObject.get("sensors");
-            Iterator<JSONObject> sensor_iterator = json_sensors.iterator();
-            while (sensor_iterator.hasNext()) {
-                JSONObject sensor = sensor_iterator.next();
-                DefaultSensor s = new DefaultSensor((String) sensor.get("id")); // init sensor object
-
-                // check if publish sensor
-                if (sensor.get("publish_interval") != null) {
-                    s.setPublishInterval((int) (long) sensor.get("publish_interval"));
-                }
-
-                JSONArray json_fields = (JSONArray) sensor.get("fields");
-                Iterator<JSONObject> iterator = json_fields.iterator();
-                while (iterator.hasNext()) { // add fields to sensor object
-                    JSONObject field = iterator.next();
-                    // load adequate field
-                    Class<?> field_class = Class.forName("field."+(String) field.get("type"));
-                    Constructor<?> field_constructor = field_class.getConstructor(String.class);
-                    AbstractField f = (AbstractField) field_constructor.newInstance((String) field.get("name"));
-
-                    // load adequate generator
-                    AbstractGenerator g;
-                    try {
-                        Class<?> generator_class = Class.forName("generator."+(String) field.get("generator"));
-                        Constructor<?> generator_constructor = generator_class.getConstructor(JSONObject.class);
-                        g = (AbstractGenerator) generator_constructor.newInstance((JSONObject) field);
-                    } catch(Exception e) { // if no class was found load default generator
-                        g = new DefaultGenerator((JSONObject) field);
+        java.util.Timer t = new java.util.Timer();
+        sensors.values().stream().filter(sensor -> sensor.getPublishInterval() > 0).forEach(sensor -> {
+            t.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    HashMap<String, String> valueMap = new HashMap<String, String>();
+                    valueMap.put("timestamp", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
+                    valueMap.put("status", "success");
+                    for (AbstractField f : sensor.getFields()) {
+                        valueMap.put((String) f.getName(), String.valueOf(f.generateValue()));
                     }
-                    f.setGenerator(g);
-                    s.getFields().add(f);
+                    w.writLine(sensor.getName(), valueMap);
                 }
-                sensors.put((String) sensor.get("id"), s); // add sensor object to sensor repository
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ParseException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        }
+            }, sensor.getPublishInterval(), sensor.getPublishInterval());
+        });
     }
+
 }

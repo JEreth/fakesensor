@@ -50,9 +50,11 @@ This application provides a broker and a client. However, you can also use your 
 #### == General configuration ==
 The main configuration contains the following elements
 
-**1. mqtt_broker** here you can define the mqtt broker. Default is a local embedded broker *tcp://0.0.0.0:1883*
+**1. mode** sets the way you access the values. Current modes are csv, http or mqtt. If not set csv is used as default.
 
-**2. sensors** json array that contains the actual sensors and its fields (see below)
+**2. mqtt_broker** here you can define the mqtt broker. Default is a local embedded broker *tcp://0.0.0.0:1883*
+
+**3. sensors** json array that contains the actual sensors and its fields (see below)
 
 #### == Sensor configuration ==
 A sensor can have the following configurations
