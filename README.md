@@ -98,3 +98,4 @@ If you have any questions don't hesitate to contact me or use the Github issue t
 - Make value generation consistent over time so that you can get a value for a certain timestamp
 - Add vagrant/docker files to easily deploy in virtual environments
 - Make the application more robust by adding fallbacks and better exception handling
+- Add simulation mode to quickly generate a lot of data (currently everything happens in real-time)
