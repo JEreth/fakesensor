@@ -9,12 +9,13 @@ I use it to simulate analytics scenarios, but it can be adapted for any other pu
 * Spark framework (http://sparkjava.com/) for http requests
 * Moquette as a mqtt broker (http://andsel.github.io/moquette/)
 * Ecplise Paho as mqtt client (to publish messages) (https://eclipse.org/paho/)
+* Apache Kafka support (https://kafka.apache.org/)
 
 **Features:**
 
 * configurable via simple json file
 * easily extensible (Add your own field types and custom value generators)
-* provides values via a http interface and/or mqtt broker
+* provides values via a http interface, mqtt broker or a kafka topic
 * simulate as many sensors/data sources as you need with only one running instance
 
 ### Get started
@@ -44,17 +45,24 @@ More about MQTT: MQTT is a light-weight message protocol often used in the Inter
 
 This application provides a broker and a client. However, you can also use your own broker by changing the ip in the *config.json*. The published messages will be printed in the console. Alternatively you can subscribe to the sensors with any mqtt client (e.g. mqttfx http://www.jensd.de/apps/mqttfx/). Therefore use the local IP *tcp://0.0.0.0:1883* and use the sensor name defined in the config.json as topic.
 
+**2.3 Accsess via kafka**
+
+You can use the kafka streaming platform to publish messages that can be subscribed by arbitrary sources. Learn more at https://kafka.apache.org/.
+ 
+The default kafka server is *localhost:9092* but you can change that in the *config.json*. You can easily run a local test environment (see kafka docs) or use a docker image (e.g. https://github.com/spotify/docker-client). It is also possible to use a remote kafka cluster (e.g. on AWS https://aws.amazon.com/kafka/).
 
 ### Configuration (config.json)
 
 #### == General configuration ==
 The main configuration contains the following elements
 
-**1. mode** sets the way you access the values. Current modes are csv, http or mqtt. If not set csv is used as default.
+**1. mode** sets the way you access the values. Current modes are csv, http, mqtt or kafka. If not set csv is used as default.
 
-**2. mqtt_broker** here you can define the mqtt broker. Default is a local embedded broker *tcp://0.0.0.0:1883*
+**2. mqtt_broker** (optional) here you can define the mqtt broker. Default is a local embedded broker *tcp://0.0.0.0:1883*
 
-**3. sensors** json array that contains the actual sensors and its fields (see below)
+**3. kafka_server** (optional) here you cn define the kafka server that receives the messages. Default is a local installation *localhost:9092*
+
+**4. sensors** json array that contains the actual sensors and its fields (see below)
 
 #### == Sensor configuration ==
 A sensor can have the following configurations

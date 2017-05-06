@@ -31,11 +31,24 @@ import io.moquette.server.Server;
 import io.moquette.server.config.ClasspathConfig;
 import io.moquette.server.config.IConfig;
 
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+
+import org.apache.log4j.Logger;
+import org.apache.log4j.BasicConfigurator;
+
+
 public class Main {
+
+    static Logger logger = Logger.getLogger(Main.class);
 
     private static Map<String,AbstractSensor> sensors = new HashMap<String,AbstractSensor>();
 
     private static String mqtt_broker = "tcp://0.0.0.0:1883";
+    private static String kafka_server = "localhost:9092";
 
     // helper to print out published messages (for testing)
     static class PublisherListener extends AbstractInterceptHandler {
@@ -47,6 +60,8 @@ public class Main {
     }
 
     public static void main(String[] args) throws InterruptedException, IOException {
+
+        BasicConfigurator.configure();
 
         // init depending on mode
         JSONParser parser = new JSONParser();
@@ -64,6 +79,9 @@ public class Main {
                     break;
                 case "http":
                     initHttp(jsonObject);
+                    break;
+                case "kafka":
+                    initKafka(jsonObject);
                     break;
                 default:
                     initCsv(jsonObject);
@@ -117,11 +135,75 @@ public class Main {
     }
 
     /**
+     * Init kafka mode to push events to a topic in a a kafka cluster
+     * @param config coming from config.json
+     */
+    private static void initKafka(JSONObject config) {
+        System.out.println("Running in KAFKA mode ...");
+        if (config.get("kafka_server")!= null) { // if custom kafka server was set
+            kafka_server = (String) config.get("kafka_server");
+        }
+
+        // SETUP KAFKA
+        Properties props = new Properties();
+
+        props.put("bootstrap.servers", kafka_server);
+        props.put("client.id", "FakeSensor");
+        props.put("key.serializer", "org.apache.kafka.common.serialization.IntegerSerializer");
+        props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+
+        // GENERATE PRODUCER
+        KafkaProducer<Integer, String> producer = new KafkaProducer<>(props);
+
+        // CATCH EVENT TO CLOSE KAFKA CONNECTION
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                System.out.println("closing kafka producer ..");
+                producer.close();
+                System.out.println("kafka producer closed");
+            }
+        });
+
+        // RUN SENSORS
+        java.util.Timer t = new java.util.Timer();
+        sensors.values().stream().filter(sensor -> sensor.getPublishInterval() > 0).forEach(sensor -> {
+            t.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    try {
+                        // generate json message
+                        JSONObject obj = new JSONObject();
+                        obj.put("timestamp",new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
+                        obj.put("status", "success");
+                        JSONArray response_fields = new JSONArray();
+                        JSONObject field_obj = new JSONObject();
+                        for(AbstractField f : sensor.getFields()) {
+                            field_obj.put((String) f.getName(), f.generateValue());
+                        }
+                        response_fields.add(field_obj);
+                        obj.put("response", response_fields);
+                        String msg = (String) obj.toJSONString();
+                        producer.send(new ProducerRecord<>(sensor.getName(),
+                                (int) (new Date().getTime()/1000),
+                                msg)).get();
+                        System.out.println("Sent kafka message: (" + sensor.getName() + ", " + msg + ")");
+                    } catch (InterruptedException | ExecutionException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }, sensor.getPublishInterval(), sensor.getPublishInterval());
+        });
+
+
+    }
+
+    /**
      * Init http mode to publish events per http requests
      * @param config coming from config.json
      */
     private static void initHttp(JSONObject config) {
-
+        System.out.println("Running in HTTP mode ...");
         get("/get/:sensorname", (request, response) -> {
             JSONObject obj = new JSONObject();
             String requested_sensor = request.params(":sensorname");
@@ -152,7 +234,7 @@ public class Main {
      * @param config coming from config.json
      */
     private static void initMqtt(JSONObject config) throws IOException {
-
+        System.out.println("Running in MQTT mode ...");
         if (config.get("mqtt_broker")!= null) { // if custom broker was set
             mqtt_broker = (String) config.get("mqtt_broker");
         }

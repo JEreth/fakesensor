@@ -1,6 +1,7 @@
 {
     "mode": "csv",
     "mqtt_broker": "tcp://0.0.0.0:1883",
+    "kafka_server": "localhost:9092",
     "sensors": [
         {
             "id": "thermometer",
